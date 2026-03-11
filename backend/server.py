@@ -622,7 +622,7 @@ async def get_products(
     category_id: Optional[str] = None,
     search: Optional[str] = None,
     is_featured: Optional[bool] = None,
-    is_active: bool = True,
+    is_active: Optional[bool] = True,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     sort_by: str = "created_at",
@@ -631,8 +631,9 @@ async def get_products(
     limit: int = 20
 ):
     query = {}
-    if is_active:
+    if is_active is True:
         query["is_active"] = True
+    # If is_active is False or None, get all products
     if category_id:
         query["category_id"] = category_id
     if is_featured is not None:
