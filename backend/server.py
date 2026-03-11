@@ -490,6 +490,7 @@ async def exchange_session(request: Request):
         user_dict = user.model_dump()
         user_dict["created_at"] = user_dict["created_at"].isoformat()
         await db.users.insert_one(user_dict)
+        user_dict.pop("_id", None)  # Remove MongoDB _id
         user_doc = user_dict
     else:
         # Update picture if changed
