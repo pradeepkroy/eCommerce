@@ -854,7 +854,7 @@ async def remove_from_cart(product_id: str, variant_id: Optional[str] = None, re
 @api_router.delete("/cart/clear")
 async def clear_cart(request: Request, user: Optional[dict] = Depends(get_current_user)):
     user_id = user.get("user_id") if user else None
-    session_id = request.cookies.get("cart_session")
+    session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session")
     
     query = {"user_id": user_id} if user_id else {"session_id": session_id}
     await db.carts.update_one(
@@ -869,7 +869,7 @@ async def clear_cart(request: Request, user: Optional[dict] = Depends(get_curren
 @api_router.post("/orders")
 async def create_order(order_data: OrderCreate, request: Request, user: Optional[dict] = Depends(get_current_user)):
     user_id = user.get("user_id") if user else None
-    session_id = request.cookies.get("cart_session")
+    session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session")
     
     # Get cart
     query = {"user_id": user_id} if user_id else {"session_id": session_id}
