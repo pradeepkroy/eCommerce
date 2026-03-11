@@ -592,6 +592,7 @@ async def create_category(category_data: CategoryCreate, user: dict = Depends(re
     cat_dict = category.model_dump()
     cat_dict["created_at"] = cat_dict["created_at"].isoformat()
     await db.categories.insert_one(cat_dict)
+    cat_dict.pop("_id", None)  # Remove MongoDB _id
     return cat_dict
 
 @api_router.put("/admin/categories/{category_id}")
