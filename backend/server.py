@@ -684,6 +684,11 @@ async def get_product_by_slug(slug: str):
 
 @api_router.post("/admin/products")
 async def create_product(product_data: ProductCreate, user: dict = Depends(require_admin)):
+    # Check if slug already exists
+    existing = await db.products.find_one({"slug": product_data.slug}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Product with slug '{product_data.slug}' already exists")
+    
     product = Product(**product_data.model_dump())
     prod_dict = product.model_dump()
     prod_dict["created_at"] = prod_dict["created_at"].isoformat()
