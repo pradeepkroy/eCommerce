@@ -545,6 +545,7 @@ async def get_settings():
         settings_dict["created_at"] = settings_dict["created_at"].isoformat()
         settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
         await db.organization_settings.insert_one(settings_dict)
+        settings_dict.pop("_id", None)  # Remove MongoDB _id
         settings = settings_dict
     return settings
 
@@ -558,6 +559,7 @@ async def get_admin_settings(user: dict = Depends(require_admin)):
         settings_dict["created_at"] = settings_dict["created_at"].isoformat()
         settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
         await db.organization_settings.insert_one(settings_dict)
+        settings_dict.pop("_id", None)  # Remove MongoDB _id
         settings = settings_dict
     return settings
 
