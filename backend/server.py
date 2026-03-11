@@ -732,15 +732,17 @@ async def get_or_create_cart(user_id: Optional[str] = None, session_id: Optional
 @api_router.get("/cart")
 async def get_cart(request: Request, user: Optional[dict] = Depends(get_current_user)):
     user_id = user.get("user_id") if user else None
-    session_id = request.cookies.get("cart_session") or str(uuid.uuid4())
+    session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session") or str(uuid.uuid4())
     
     cart = await get_or_create_cart(user_id, session_id if not user_id else None)
+    # Include session_id in response for client to store
+    cart["session_id"] = session_id
     return cart
 
 @api_router.post("/cart/add")
 async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[dict] = Depends(get_current_user)):
     user_id = user.get("user_id") if user else None
-    session_id = request.cookies.get("cart_session") or str(uuid.uuid4())
+    session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session") or str(uuid.uuid4())
     
     # Get product
     product = await db.products.find_one({"product_id": item.product_id}, {"_id": 0})
