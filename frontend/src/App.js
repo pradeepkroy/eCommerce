@@ -11,17 +11,30 @@ export const useAuth = () => useContext(AuthContext);
 // API Helper
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// Cart session management
+const getCartSession = () => localStorage.getItem('cart_session');
+const setCartSession = (sessionId) => localStorage.setItem('cart_session', sessionId);
+
 const api = {
   async get(endpoint, token = null) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    const cartSession = getCartSession();
+    if (cartSession) headers['X-Cart-Session'] = cartSession;
     const response = await fetch(`${API_URL}${endpoint}`, { headers, credentials: 'include' });
     if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
-    return response.json();
+    const data = await response.json();
+    // Store cart session from response
+    if (data.session_id && endpoint.includes('/cart')) {
+      setCartSession(data.session_id);
+    }
+    return data;
   },
   async post(endpoint, data = {}, token = null) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    const cartSession = getCartSession();
+    if (cartSession) headers['X-Cart-Session'] = cartSession;
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       headers,
@@ -29,11 +42,18 @@ const api = {
       body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
-    return response.json();
+    const result = await response.json();
+    // Store cart session from response
+    if (result.session_id && endpoint.includes('/cart')) {
+      setCartSession(result.session_id);
+    }
+    return result;
   },
   async put(endpoint, data = {}, token = null) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    const cartSession = getCartSession();
+    if (cartSession) headers['X-Cart-Session'] = cartSession;
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
       headers,
@@ -41,11 +61,17 @@ const api = {
       body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
-    return response.json();
+    const result = await response.json();
+    if (result.session_id && endpoint.includes('/cart')) {
+      setCartSession(result.session_id);
+    }
+    return result;
   },
   async delete(endpoint, token = null) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    const cartSession = getCartSession();
+    if (cartSession) headers['X-Cart-Session'] = cartSession;
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
       headers,
