@@ -720,6 +720,7 @@ async def get_or_create_cart(user_id: Optional[str] = None, session_id: Optional
         cart_dict["created_at"] = cart_dict["created_at"].isoformat()
         cart_dict["updated_at"] = cart_dict["updated_at"].isoformat()
         await db.carts.insert_one(cart_dict)
+        cart_dict.pop("_id", None)  # Remove MongoDB _id
         cart = cart_dict
     
     return cart
