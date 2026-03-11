@@ -685,6 +685,7 @@ async def create_product(product_data: ProductCreate, user: dict = Depends(requi
     prod_dict["created_at"] = prod_dict["created_at"].isoformat()
     prod_dict["updated_at"] = prod_dict["updated_at"].isoformat()
     await db.products.insert_one(prod_dict)
+    prod_dict.pop("_id", None)  # Remove MongoDB _id
     return prod_dict
 
 @api_router.put("/admin/products/{product_id}")
