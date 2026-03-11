@@ -797,6 +797,7 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
     )
     
     cart = await db.carts.find_one(query, {"_id": 0})
+    cart["session_id"] = session_id
     return cart
 
 @api_router.put("/cart/update")
