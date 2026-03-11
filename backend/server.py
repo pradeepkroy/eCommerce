@@ -802,7 +802,7 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
 @api_router.put("/cart/update")
 async def update_cart_item(item: UpdateCartItemRequest, request: Request, user: Optional[dict] = Depends(get_current_user)):
     user_id = user.get("user_id") if user else None
-    session_id = request.cookies.get("cart_session")
+    session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session")
     
     query = {"user_id": user_id} if user_id else {"session_id": session_id}
     cart = await db.carts.find_one(query, {"_id": 0})
