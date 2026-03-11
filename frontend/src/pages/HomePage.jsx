@@ -72,17 +72,19 @@ export default function HomePage() {
     <Layout>
       {/* Hero Carousel */}
       <section className="hero-carousel relative overflow-hidden" data-testid="hero-carousel">
-        <div className="relative">
+        <div className="relative h-[500px]">
           {heroSlides.map((slide, index) => (
             <div
               key={slide.id}
-              className={`hero-slide absolute inset-0 transition-opacity duration-500 ${
-                index === currentSlide ? 'opacity-100 relative' : 'opacity-0'
+              className={`hero-slide absolute inset-0 transition-all duration-700 ease-in-out ${
+                index === currentSlide 
+                  ? 'opacity-100 z-10' 
+                  : 'opacity-0 z-0'
               }`}
               style={{ backgroundImage: `url(${slide.image})` }}
             >
               <div className="container mx-auto px-4 h-full flex items-center">
-                <div className="hero-content animate-fadeIn">
+                <div className={`hero-content ${index === currentSlide ? 'animate-fadeIn' : ''}`}>
                   <h2>{slide.title}</h2>
                   <p>{slide.subtitle}</p>
                   <div className="price">
