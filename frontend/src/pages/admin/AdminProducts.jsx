@@ -32,7 +32,7 @@ export default function AdminProducts() {
       if (search) params.append('search', search);
       params.append('page', pagination.page);
       params.append('limit', '10');
-      params.append('is_active', ''); // Get all products
+      params.append('is_active', 'false'); // Get all products including inactive
       
       const data = await api.get(`/api/products?${params.toString()}`, token);
       setProducts(data.products);
