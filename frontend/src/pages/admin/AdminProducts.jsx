@@ -461,8 +461,8 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
             </div>
 
             {/* Toggles */}
-            <div className="flex items-center justify-between">
-              <Label htmlFor="is_active">Active</Label>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <Label htmlFor="is_active" className="text-gray-700 font-medium">Active</Label>
               <Switch
                 id="is_active"
                 checked={formData?.is_active ?? true}
@@ -470,8 +470,8 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <Label htmlFor="is_featured">Featured</Label>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <Label htmlFor="is_featured" className="text-gray-700 font-medium">Featured</Label>
               <Switch
                 id="is_featured"
                 checked={formData?.is_featured ?? false}
@@ -480,11 +480,11 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button type="button" variant="outline" onClick={onClose} className="border-gray-300 text-gray-700">
               Cancel
             </Button>
-            <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={saving} data-testid="save-product">
+            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white" disabled={saving} data-testid="save-product">
               {saving ? 'Saving...' : formData?.product_id ? 'Update Product' : 'Create Product'}
             </Button>
           </div>
