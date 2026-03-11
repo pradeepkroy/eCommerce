@@ -22,8 +22,8 @@ const api = {
     const cartSession = getCartSession();
     if (cartSession) headers['X-Cart-Session'] = cartSession;
     const response = await fetch(`${API_URL}${endpoint}`, { headers, credentials: 'include' });
-    if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
     const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Request failed');
     // Store cart session from response
     if (data.session_id && endpoint.includes('/cart')) {
       setCartSession(data.session_id);
@@ -41,8 +41,8 @@ const api = {
       credentials: 'include',
       body: JSON.stringify(data)
     });
-    if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
     const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || 'Request failed');
     // Store cart session from response
     if (result.session_id && endpoint.includes('/cart')) {
       setCartSession(result.session_id);
@@ -60,8 +60,8 @@ const api = {
       credentials: 'include',
       body: JSON.stringify(data)
     });
-    if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
     const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || 'Request failed');
     if (result.session_id && endpoint.includes('/cart')) {
       setCartSession(result.session_id);
     }
@@ -77,7 +77,8 @@ const api = {
       headers,
       credentials: 'include'
     });
-    if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || 'Request failed');
     return response.json();
   }
 };
