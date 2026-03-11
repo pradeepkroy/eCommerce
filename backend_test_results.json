@@ -1,34 +1,9 @@
 {
-  "total_tests": 19,
-  "passed_tests": 15,
-  "failed_tests": 4,
-  "success_rate": 78.94736842105263,
-  "failed_test_details": [
-    {
-      "test": "Create Category (Admin)",
-      "success": false,
-      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
-      "endpoint": "/api/admin/categories"
-    },
-    {
-      "test": "Create Product (Admin)",
-      "success": false,
-      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
-      "endpoint": "/api/admin/products"
-    },
-    {
-      "test": "Get Cart",
-      "success": false,
-      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
-      "endpoint": "/api/cart"
-    },
-    {
-      "test": "Create Order",
-      "success": false,
-      "details": "Failed: {'detail': 'Cart is empty'}",
-      "endpoint": "/api/orders"
-    }
-  ],
+  "total_tests": 24,
+  "passed_tests": 24,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "failed_test_details": [],
   "passed_test_names": [
     "API Root Endpoint",
     "Health Check Endpoint",
@@ -37,12 +12,21 @@
     "User Login",
     "Get Current User (Admin)",
     "Get Categories",
+    "Create Category (Admin)",
     "Get Products",
     "Get Featured Products",
+    "Create Product (Admin)",
+    "Get Single Product",
+    "Get Cart",
+    "Add to Cart",
+    "Update Cart Item",
+    "Create Order",
+    "Get User Orders",
     "Admin Dashboard Stats",
     "Get All Orders (Admin)",
     "Get Users (Admin)",
     "Get Admin Settings",
+    "AI Product Recommendations",
     "AI Search Suggestions",
     "Get Public Settings"
   ]
