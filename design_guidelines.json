@@ -1,0 +1,151 @@
+{
+  "typography": {
+    "font_family": {
+      "primary": "Open Sans, sans-serif",
+      "secondary": "Open Sans, sans-serif"
+    },
+    "weights": {
+      "light": 300,
+      "regular": 400,
+      "semibold": 600,
+      "bold": 700
+    },
+    "sizes": {
+      "h1": "text-4xl md:text-5xl font-bold tracking-tight",
+      "h2": "text-3xl md:text-4xl font-bold tracking-tight",
+      "h3": "text-2xl md:text-3xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-muted-foreground"
+    }
+  },
+  "colors": {
+    "primary": {
+      "name": "Teal",
+      "hex": "#00ACAC",
+      "tailwind_var": "hsl(174, 100%, 33%)",
+      "usage": "Primary buttons, active states, links, highlights"
+    },
+    "secondary": {
+      "name": "Dark Gray",
+      "hex": "#2D353C",
+      "tailwind_var": "hsl(210, 14%, 20%)",
+      "usage": "Headings, footer background, text-primary"
+    },
+    "background": {
+      "default": "#FFFFFF",
+      "paper": "#F3F4F6",
+      "dark": "#1F2937"
+    },
+    "text": {
+      "primary": "#1F2937",
+      "secondary": "#6B7280",
+      "inverse": "#FFFFFF"
+    },
+    "status": {
+      "success": "#10B981",
+      "error": "#EF4444",
+      "warning": "#F59E0B"
+    }
+  },
+  "layout": {
+    "container": "container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl",
+    "spacing": {
+      "section_gap": "py-16 md:py-24",
+      "element_gap": "gap-6 md:gap-8"
+    },
+    "grid": {
+      "product_grid": "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6",
+      "feature_grid": "grid grid-cols-1 md:grid-cols-3 gap-8"
+    },
+    "radius": {
+      "default": "rounded-md",
+      "button": "rounded-full",
+      "card": "rounded-lg"
+    }
+  },
+  "components": {
+    "header": {
+      "style": "sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60",
+      "elements": [
+        "Logo (Left)",
+        "Mega Menu (Center)",
+        "Search, Cart, User (Right)",
+        "Top Bar (Language, Socials) - Optional"
+      ]
+    },
+    "hero": {
+      "type": "Carousel",
+      "style": "h-[500px] md:h-[600px] w-full relative overflow-hidden",
+      "content": "Full width image with overlay text and CTA button"
+    },
+    "product_card": {
+      "style": "group relative bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300",
+      "image_aspect": "aspect-[3/4] or aspect-square object-cover",
+      "actions": "Quick view and Add to Cart visible on hover"
+    },
+    "footer": {
+      "style": "bg-[#2D353C] text-white py-12",
+      "columns": 4,
+      "content": ["About", "Quick Links", "Categories", "Contact/Newsletter"]
+    }
+  },
+  "image_urls": {
+    "hero_slider": [
+      {
+        "url": "https://images.unsplash.com/photo-1768818504222-00858f3e0eb8",
+        "alt": "Fashion Collection",
+        "category": "fashion"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1757774636367-d03962a019f7",
+        "alt": "Modern Electronics",
+        "category": "electronics"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1617364852223-75f57e78dc96",
+        "alt": "Minimalist Furniture",
+        "category": "home"
+      }
+    ],
+    "categories": [
+      {
+        "name": "Electronics",
+        "url": "https://images.unsplash.com/photo-1757356747705-8ade2de531fb"
+      },
+      {
+        "name": "Fashion",
+        "url": "https://images.unsplash.com/photo-1768696083080-15d4218ce844"
+      },
+      {
+        "name": "Home & Living",
+        "url": "https://images.unsplash.com/photo-1750306956117-460a9fd3f1b8"
+      }
+    ],
+    "placeholders": {
+      "product": "https://images.unsplash.com/photo-1759588071782-b2091e07d737",
+      "avatar": "https://github.com/shadcn.png"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": "shadow-sm hover:shadow-md transition-shadow",
+    "gradients": "None (Flat style preferred for this theme)",
+    "borders": "border border-gray-200",
+    "animations": "hover:-translate-y-1 transition-transform duration-300"
+  },
+  "instructions_to_main_agent": [
+    "Implement the 'Teal' theme by overriding the primary color in tailwind.config.js or using arbitrary values if needed, but consistency is key.",
+    "Use 'Open Sans' for all text. Import it from Google Fonts in index.css.",
+    "Follow the 'Bootstrap' grid feel using Tailwind's grid system (12 columns concept).",
+    "Ensure the Header has a 'Mega Menu' feel - use Shadcn Navigation Menu.",
+    "The Footer must be dark (#2D353C) with white text, matching the ColorAdmin theme.",
+    "Use the provided image URLs for the initial seed data/display.",
+    "Maintain a clean, white-space heavy layout within the containers."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use generic AI emojis.",
+    "Ensure all interactive elements have hover states.",
+    "Use 'sonner' for toasts.",
+    "Add data-testid to all interactive elements.",
+    "Respect the 'Teal' constraint strictly for primary actions."
+  ]
+}
