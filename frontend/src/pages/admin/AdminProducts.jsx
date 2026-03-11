@@ -372,7 +372,7 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
             </div>
 
             <div>
-              <Label htmlFor="price">Price *</Label>
+              <Label htmlFor="price" className="text-gray-700 font-medium">Price *</Label>
               <Input
                 id="price"
                 name="price"
@@ -381,12 +381,13 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
                 value={formData?.price || ''}
                 onChange={handleChange}
                 required
+                className="bg-white border-gray-300"
                 data-testid="product-price-input"
               />
             </div>
 
             <div>
-              <Label htmlFor="compare_at_price">Compare at Price</Label>
+              <Label htmlFor="compare_at_price" className="text-gray-700 font-medium">Compare at Price</Label>
               <Input
                 id="compare_at_price"
                 name="compare_at_price"
@@ -394,40 +395,44 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
                 step="0.01"
                 value={formData?.compare_at_price || ''}
                 onChange={handleChange}
+                className="bg-white border-gray-300"
               />
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="short_description">Short Description</Label>
+              <Label htmlFor="short_description" className="text-gray-700 font-medium">Short Description</Label>
               <Input
                 id="short_description"
                 name="short_description"
                 value={formData?.short_description || ''}
                 onChange={handleChange}
+                className="bg-white border-gray-300"
               />
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="description">Full Description</Label>
+              <Label htmlFor="description" className="text-gray-700 font-medium">Full Description</Label>
               <Textarea
                 id="description"
                 name="description"
                 rows={4}
                 value={formData?.description || ''}
                 onChange={handleChange}
+                className="bg-white border-gray-300"
               />
             </div>
 
             {/* Images */}
             <div className="col-span-2">
-              <Label>Product Images</Label>
+              <Label className="text-gray-700 font-medium">Product Images</Label>
               <div className="flex gap-2 mb-2">
                 <Input
                   placeholder="Image URL"
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
+                  className="bg-white border-gray-300"
                 />
-                <Button type="button" variant="outline" onClick={handleAddImage}>
+                <Button type="button" variant="outline" onClick={handleAddImage} className="border-gray-300">
                   <Image className="w-4 h-4 mr-2" /> Add
                 </Button>
               </div>
