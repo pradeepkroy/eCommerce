@@ -898,6 +898,7 @@ async def create_order(order_data: OrderCreate, request: Request, user: Optional
     order_dict["items"] = [item.model_dump() for item in order.items]
     
     await db.orders.insert_one(order_dict)
+    order_dict.pop("_id", None)  # Remove MongoDB _id
     
     # Clear cart after order
     await db.carts.update_one(query, {"$set": {"items": [], "subtotal": 0}})
