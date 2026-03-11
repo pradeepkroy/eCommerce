@@ -1,0 +1,49 @@
+{
+  "total_tests": 19,
+  "passed_tests": 15,
+  "failed_tests": 4,
+  "success_rate": 78.94736842105263,
+  "failed_test_details": [
+    {
+      "test": "Create Category (Admin)",
+      "success": false,
+      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
+      "endpoint": "/api/admin/categories"
+    },
+    {
+      "test": "Create Product (Admin)",
+      "success": false,
+      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
+      "endpoint": "/api/admin/products"
+    },
+    {
+      "test": "Get Cart",
+      "success": false,
+      "details": "Failed: {'status_code': 500, 'text': 'Internal Server Error'}",
+      "endpoint": "/api/cart"
+    },
+    {
+      "test": "Create Order",
+      "success": false,
+      "details": "Failed: {'detail': 'Cart is empty'}",
+      "endpoint": "/api/orders"
+    }
+  ],
+  "passed_test_names": [
+    "API Root Endpoint",
+    "Health Check Endpoint",
+    "Admin Login",
+    "User Registration",
+    "User Login",
+    "Get Current User (Admin)",
+    "Get Categories",
+    "Get Products",
+    "Get Featured Products",
+    "Admin Dashboard Stats",
+    "Get All Orders (Admin)",
+    "Get Users (Admin)",
+    "Get Admin Settings",
+    "AI Search Suggestions",
+    "Get Public Settings"
+  ]
+}
