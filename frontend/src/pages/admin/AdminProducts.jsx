@@ -295,9 +295,9 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-gray-900">
             {formData?.product_id ? 'Edit Product' : 'Add New Product'}
           </DialogTitle>
         </DialogHeader>
@@ -305,48 +305,51 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Label htmlFor="name">Product Name *</Label>
+              <Label htmlFor="name" className="text-gray-700 font-medium">Product Name *</Label>
               <Input
                 id="name"
                 name="name"
                 value={formData?.name || ''}
                 onChange={handleChange}
                 required
+                className="bg-white border-gray-300"
                 data-testid="product-name-input"
               />
             </div>
             
             <div>
-              <Label htmlFor="slug">Slug</Label>
+              <Label htmlFor="slug" className="text-gray-700 font-medium">Slug</Label>
               <Input
                 id="slug"
                 name="slug"
                 value={formData?.slug || ''}
                 onChange={handleChange}
                 placeholder="auto-generated"
+                className="bg-white border-gray-300"
               />
             </div>
             
             <div>
-              <Label htmlFor="sku">SKU</Label>
+              <Label htmlFor="sku" className="text-gray-700 font-medium">SKU</Label>
               <Input
                 id="sku"
                 name="sku"
                 value={formData?.sku || ''}
                 onChange={handleChange}
+                className="bg-white border-gray-300"
               />
             </div>
 
             <div>
-              <Label htmlFor="category_id">Category</Label>
+              <Label htmlFor="category_id" className="text-gray-700 font-medium">Category</Label>
               <Select 
                 value={formData?.category_id || ''} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="bg-white border-gray-300">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {categories.map(cat => (
                     <SelectItem key={cat.category_id} value={cat.category_id}>
                       {cat.name}
@@ -357,13 +360,14 @@ function ProductDialog({ product, categories, isOpen, onClose, onSave, token }) 
             </div>
 
             <div>
-              <Label htmlFor="stock">Stock</Label>
+              <Label htmlFor="stock" className="text-gray-700 font-medium">Stock</Label>
               <Input
                 id="stock"
                 name="stock"
                 type="number"
                 value={formData?.stock || 0}
                 onChange={handleChange}
+                className="bg-white border-gray-300"
               />
             </div>
 
