@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, BackgroundTasks, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Query, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -6,7 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -26,24 +26,22 @@ db = client[os.environ.get('DB_NAME', 'ecommerce_db')]
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-change-in-production')
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
+JWT_EXPIRATION_HOURS = 24 * 7
 
 # Create the main app
-app = FastAPI(title="E-Commerce API", version="1.0.0")
+app = FastAPI(title="Multi-Business E-Commerce API", version="2.0.0")
 api_router = APIRouter(prefix="/api")
-
-# Security
 security = HTTPBearer(auto_error=False)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==================== ENUMS ====================
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    CUSTOMER = "customer"
     SUPER_ADMIN = "super_admin"
+    BUSINESS_ADMIN = "business_admin"
+    STAFF = "staff"
+    CUSTOMER = "customer"
 
 class OrderStatus(str, Enum):
     PENDING = "pending"
@@ -64,77 +62,71 @@ class PaymentMethod(str, Enum):
     PAYPAL = "paypal"
     RAZORPAY = "razorpay"
 
+class DropshipStatus(str, Enum):
+    PENDING = "pending"
+    SENT_TO_SUPPLIER = "sent_to_supplier"
+    SUPPLIER_CONFIRMED = "supplier_confirmed"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+
 # ==================== MODELS ====================
 
-# Organization/Tenant
-class OrganizationSettings(BaseModel):
-    org_id: str = Field(default_factory=lambda: f"org_{uuid.uuid4().hex[:12]}")
-    website_name: str = "My Store"
+# Business/Tenant Model
+class BusinessCreate(BaseModel):
+    name: str
+    slug: str
+    description: Optional[str] = None
     logo_url: Optional[str] = None
     primary_color: str = "#00ACAC"
-    bank_account_name: Optional[str] = None
-    bank_account_number: Optional[str] = None
-    bank_bsb: Optional[str] = None
-    email_from_address: Optional[str] = None
-    email_from_name: Optional[str] = None
-    sendgrid_api_key: Optional[str] = None
-    twilio_account_sid: Optional[str] = None
-    twilio_auth_token: Optional[str] = None
-    twilio_phone_number: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+
+class Business(BusinessCreate):
+    business_id: str = Field(default_factory=lambda: f"biz_{uuid.uuid4().hex[:12]}")
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    settings: Dict[str, Any] = {}
+
+# Platform Settings (Super Admin)
+class PlatformSettings(BaseModel):
+    platform_name: str = "ShopStore Platform"
+    platform_logo_url: Optional[str] = None
+    show_powered_by: bool = True
+    default_currency: str = "AUD"
     stripe_enabled: bool = True
     paypal_enabled: bool = False
-    paypal_client_id: Optional[str] = None
-    paypal_secret: Optional[str] = None
     razorpay_enabled: bool = False
-    razorpay_key_id: Optional[str] = None
-    razorpay_key_secret: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class OrganizationSettingsUpdate(BaseModel):
-    website_name: Optional[str] = None
-    logo_url: Optional[str] = None
-    primary_color: Optional[str] = None
-    bank_account_name: Optional[str] = None
-    bank_account_number: Optional[str] = None
-    bank_bsb: Optional[str] = None
-    email_from_address: Optional[str] = None
-    email_from_name: Optional[str] = None
     sendgrid_api_key: Optional[str] = None
     twilio_account_sid: Optional[str] = None
     twilio_auth_token: Optional[str] = None
     twilio_phone_number: Optional[str] = None
-    stripe_enabled: Optional[bool] = None
-    paypal_enabled: Optional[bool] = None
-    paypal_client_id: Optional[str] = None
-    paypal_secret: Optional[str] = None
-    razorpay_enabled: Optional[bool] = None
-    razorpay_key_id: Optional[str] = None
-    razorpay_key_secret: Optional[str] = None
 
 # User Models
-class UserBase(BaseModel):
-    email: EmailStr
-    name: str
-    phone: Optional[str] = None
-    role: UserRole = UserRole.CUSTOMER
-    picture: Optional[str] = None
-
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
     phone: Optional[str] = None
+    role: UserRole = UserRole.CUSTOMER
+    business_id: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    picture: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+class PasswordReset(BaseModel):
+    email: EmailStr
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
-
-class User(UserBase):
-    model_config = ConfigDict(extra="ignore")
-    user_id: str = Field(default_factory=lambda: f"user_{uuid.uuid4().hex[:12]}")
-    is_active: bool = True
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserResponse(BaseModel):
     user_id: str
@@ -142,6 +134,7 @@ class UserResponse(BaseModel):
     name: str
     phone: Optional[str] = None
     role: str
+    business_id: Optional[str] = None
     picture: Optional[str] = None
     is_active: bool
     created_at: str
@@ -157,6 +150,7 @@ class CategoryCreate(BaseModel):
 
 class Category(CategoryCreate):
     category_id: str = Field(default_factory=lambda: f"cat_{uuid.uuid4().hex[:12]}")
+    business_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # Product Models
@@ -189,9 +183,12 @@ class ProductCreate(BaseModel):
     tags: List[str] = []
     is_active: bool = True
     is_featured: bool = False
+    is_dropship: bool = False
+    supplier_id: Optional[str] = None
 
 class Product(ProductCreate):
     product_id: str = Field(default_factory=lambda: f"prod_{uuid.uuid4().hex[:12]}")
+    business_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -210,6 +207,36 @@ class ProductUpdate(BaseModel):
     tags: Optional[List[str]] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
+    is_dropship: Optional[bool] = None
+    supplier_id: Optional[str] = None
+
+# Drop-shipping Models
+class SupplierCreate(BaseModel):
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    contact_person: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class Supplier(SupplierCreate):
+    supplier_id: str = Field(default_factory=lambda: f"sup_{uuid.uuid4().hex[:12]}")
+    business_id: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DropshipOrder(BaseModel):
+    dropship_id: str = Field(default_factory=lambda: f"drop_{uuid.uuid4().hex[:12]}")
+    order_id: str
+    supplier_id: str
+    business_id: str
+    items: List[Dict[str, Any]] = []
+    status: DropshipStatus = DropshipStatus.PENDING
+    tracking_number: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # Cart Models
 class CartItem(BaseModel):
@@ -224,6 +251,7 @@ class Cart(BaseModel):
     cart_id: str = Field(default_factory=lambda: f"cart_{uuid.uuid4().hex[:12]}")
     user_id: Optional[str] = None
     session_id: Optional[str] = None
+    business_id: Optional[str] = None
     items: List[CartItem] = []
     subtotal: float = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -259,6 +287,8 @@ class OrderItem(BaseModel):
     price: float
     quantity: int
     image_url: Optional[str] = None
+    is_dropship: bool = False
+    supplier_id: Optional[str] = None
 
 class OrderCreate(BaseModel):
     shipping_address: ShippingAddress
@@ -269,6 +299,7 @@ class Order(BaseModel):
     order_id: str = Field(default_factory=lambda: f"order_{uuid.uuid4().hex[:12]}")
     order_number: str = Field(default_factory=lambda: f"ORD-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}")
     user_id: Optional[str] = None
+    business_id: Optional[str] = None
     items: List[OrderItem] = []
     shipping_address: ShippingAddress
     subtotal: float
@@ -279,21 +310,8 @@ class Order(BaseModel):
     payment_status: PaymentStatus = PaymentStatus.PENDING
     payment_method: PaymentMethod
     payment_id: Optional[str] = None
+    has_dropship_items: bool = False
     notes: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-# Payment Transaction
-class PaymentTransaction(BaseModel):
-    transaction_id: str = Field(default_factory=lambda: f"txn_{uuid.uuid4().hex[:12]}")
-    order_id: str
-    user_id: Optional[str] = None
-    amount: float
-    currency: str = "AUD"
-    payment_method: PaymentMethod
-    session_id: Optional[str] = None
-    status: PaymentStatus = PaymentStatus.PENDING
-    metadata: Dict[str, Any] = {}
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -311,11 +329,12 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_jwt_token(user_id: str, email: str, role: str) -> str:
+def create_jwt_token(user_id: str, email: str, role: str, business_id: str = None) -> str:
     payload = {
         "user_id": user_id,
         "email": email,
         "role": role,
+        "business_id": business_id,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
         "iat": datetime.now(timezone.utc)
     }
@@ -331,21 +350,14 @@ def decode_jwt_token(token: str) -> dict:
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), request: Request = None) -> Optional[dict]:
     token = None
-    
-    # Try to get token from Authorization header
     if credentials:
         token = credentials.credentials
-    
-    # Try to get token from cookies
     if not token and request:
         token = request.cookies.get("session_token")
-    
     if not token:
         return None
-    
     try:
-        payload = decode_jwt_token(token)
-        return payload
+        return decode_jwt_token(token)
     except:
         return None
 
@@ -355,18 +367,35 @@ async def require_auth(credentials: HTTPAuthorizationCredentials = Depends(secur
         raise HTTPException(status_code=401, detail="Authentication required")
     return user
 
+async def require_staff(credentials: HTTPAuthorizationCredentials = Depends(security), request: Request = None) -> dict:
+    user = await require_auth(credentials, request)
+    if user.get("role") not in [UserRole.SUPER_ADMIN, UserRole.BUSINESS_ADMIN, UserRole.STAFF]:
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return user
+
 async def require_admin(credentials: HTTPAuthorizationCredentials = Depends(security), request: Request = None) -> dict:
     user = await require_auth(credentials, request)
-    if user.get("role") not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if user.get("role") not in [UserRole.SUPER_ADMIN, UserRole.BUSINESS_ADMIN]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
+async def require_super_admin(credentials: HTTPAuthorizationCredentials = Depends(security), request: Request = None) -> dict:
+    user = await require_auth(credentials, request)
+    if user.get("role") != UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Super Admin access required")
+    return user
+
+def get_business_filter(user: dict) -> dict:
+    """Returns MongoDB filter based on user's business access"""
+    if user.get("role") == UserRole.SUPER_ADMIN:
+        return {}  # Super admin sees all
+    return {"business_id": user.get("business_id")}
+
 # ==================== ROUTES ====================
 
-# Health Check
 @api_router.get("/")
 async def root():
-    return {"message": "E-Commerce API is running", "version": "1.0.0"}
+    return {"message": "Multi-Business E-Commerce API", "version": "2.0.0"}
 
 @api_router.get("/health")
 async def health_check():
@@ -376,38 +405,33 @@ async def health_check():
 
 @api_router.post("/auth/register", response_model=AuthResponse)
 async def register(user_data: UserCreate):
-    # Check if user exists
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Create user
-    user = User(
-        email=user_data.email,
-        name=user_data.name,
-        phone=user_data.phone,
-        role=UserRole.CUSTOMER
-    )
-    
-    user_dict = user.model_dump()
-    user_dict["password_hash"] = hash_password(user_data.password)
-    user_dict["created_at"] = user_dict["created_at"].isoformat()
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    user_dict = {
+        "user_id": user_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "phone": user_data.phone,
+        "role": user_data.role if user_data.role else UserRole.CUSTOMER,
+        "business_id": user_data.business_id,
+        "password_hash": hash_password(user_data.password),
+        "is_active": True,
+        "picture": None,
+        "address": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
     
     await db.users.insert_one(user_dict)
+    user_dict.pop("_id", None)
+    user_dict.pop("password_hash", None)
     
-    token = create_jwt_token(user.user_id, user.email, user.role)
+    token = create_jwt_token(user_id, user_data.email, user_dict["role"], user_data.business_id)
     
     return AuthResponse(
-        user=UserResponse(
-            user_id=user.user_id,
-            email=user.email,
-            name=user.name,
-            phone=user.phone,
-            role=user.role,
-            picture=user.picture,
-            is_active=user.is_active,
-            created_at=user_dict["created_at"]
-        ),
+        user=UserResponse(**user_dict),
         token=token
     )
 
@@ -415,12 +439,22 @@ async def register(user_data: UserCreate):
 async def login(credentials: UserLogin):
     user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user_doc:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     
     if not verify_password(credentials.password, user_doc.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    token = create_jwt_token(user_doc["user_id"], user_doc["email"], user_doc["role"])
+    if not user_doc.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Account is disabled")
+    
+    token = create_jwt_token(
+        user_doc["user_id"], 
+        user_doc["email"], 
+        user_doc["role"],
+        user_doc.get("business_id")
+    )
+    
+    user_doc.pop("password_hash", None)
     
     return AuthResponse(
         user=UserResponse(
@@ -429,9 +463,10 @@ async def login(credentials: UserLogin):
             name=user_doc["name"],
             phone=user_doc.get("phone"),
             role=user_doc["role"],
+            business_id=user_doc.get("business_id"),
             picture=user_doc.get("picture"),
             is_active=user_doc.get("is_active", True),
-            created_at=user_doc["created_at"] if isinstance(user_doc["created_at"], str) else user_doc["created_at"].isoformat()
+            created_at=user_doc["created_at"]
         ),
         token=token
     )
@@ -441,77 +476,73 @@ async def get_me(user: dict = Depends(require_auth)):
     user_doc = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    return UserResponse(
-        user_id=user_doc["user_id"],
-        email=user_doc["email"],
-        name=user_doc["name"],
-        phone=user_doc.get("phone"),
-        role=user_doc["role"],
-        picture=user_doc.get("picture"),
-        is_active=user_doc.get("is_active", True),
-        created_at=user_doc["created_at"] if isinstance(user_doc["created_at"], str) else user_doc["created_at"].isoformat()
-    )
+    return UserResponse(**user_doc)
 
-# Emergent OAuth callback
+@api_router.put("/auth/profile")
+async def update_profile(update_data: UserUpdate, user: dict = Depends(require_auth)):
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    if update_dict:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": update_dict})
+    user_doc = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return user_doc
+
+@api_router.post("/auth/change-password")
+async def change_password(data: PasswordChange, user: dict = Depends(require_auth)):
+    user_doc = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not verify_password(data.current_password, user_doc.get("password_hash", "")):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"password_hash": new_hash}})
+    
+    return {"message": "Password changed successfully"}
+
 @api_router.post("/auth/session")
 async def exchange_session(request: Request):
-    """Exchange Emergent OAuth session_id for user data and create session"""
     body = await request.json()
     session_id = body.get("session_id")
     
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
     
-    # Call Emergent Auth to get user data
     async with httpx.AsyncClient() as client:
         response = await client.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
             headers={"X-Session-ID": session_id}
         )
-        
         if response.status_code != 200:
             raise HTTPException(status_code=401, detail="Invalid session")
-        
         auth_data = response.json()
     
-    # Find or create user
     email = auth_data.get("email")
     user_doc = await db.users.find_one({"email": email}, {"_id": 0})
     
     if not user_doc:
-        # Create new user
-        user = User(
-            email=email,
-            name=auth_data.get("name", email.split("@")[0]),
-            picture=auth_data.get("picture"),
-            role=UserRole.CUSTOMER
-        )
-        user_dict = user.model_dump()
-        user_dict["created_at"] = user_dict["created_at"].isoformat()
-        await db.users.insert_one(user_dict)
-        user_dict.pop("_id", None)  # Remove MongoDB _id
-        user_doc = user_dict
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user_doc = {
+            "user_id": user_id,
+            "email": email,
+            "name": auth_data.get("name", email.split("@")[0]),
+            "picture": auth_data.get("picture"),
+            "role": UserRole.CUSTOMER,
+            "business_id": None,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(user_doc)
+        user_doc.pop("_id", None)
     else:
-        # Update picture if changed
         if auth_data.get("picture") and user_doc.get("picture") != auth_data.get("picture"):
-            await db.users.update_one(
-                {"email": email},
-                {"$set": {"picture": auth_data.get("picture")}}
-            )
+            await db.users.update_one({"email": email}, {"$set": {"picture": auth_data.get("picture")}})
             user_doc["picture"] = auth_data.get("picture")
     
-    # Create JWT token
-    token = create_jwt_token(user_doc["user_id"], user_doc["email"], user_doc["role"])
-    
-    # Store session
-    session_token = auth_data.get("session_token", token)
-    await db.user_sessions.insert_one({
-        "user_id": user_doc["user_id"],
-        "session_token": session_token,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
+    token = create_jwt_token(user_doc["user_id"], user_doc["email"], user_doc["role"], user_doc.get("business_id"))
     
     return {
         "user": UserResponse(
@@ -520,65 +551,217 @@ async def exchange_session(request: Request):
             name=user_doc["name"],
             phone=user_doc.get("phone"),
             role=user_doc["role"],
+            business_id=user_doc.get("business_id"),
             picture=user_doc.get("picture"),
             is_active=user_doc.get("is_active", True),
-            created_at=user_doc["created_at"] if isinstance(user_doc["created_at"], str) else user_doc["created_at"].isoformat()
+            created_at=user_doc.get("created_at", datetime.now(timezone.utc).isoformat())
         ),
-        "token": token,
-        "session_token": session_token
+        "token": token
     }
 
 @api_router.post("/auth/logout")
 async def logout(user: dict = Depends(require_auth)):
-    await db.user_sessions.delete_many({"user_id": user["user_id"]})
     return {"message": "Logged out successfully"}
 
-# ==================== ORGANIZATION SETTINGS ====================
+# ==================== PLATFORM SETTINGS (SUPER ADMIN) ====================
 
-@api_router.get("/settings")
-async def get_settings():
-    """Get public organization settings"""
-    settings = await db.organization_settings.find_one({}, {"_id": 0, "sendgrid_api_key": 0, "twilio_auth_token": 0, "paypal_secret": 0, "razorpay_key_secret": 0})
+@api_router.get("/platform/settings")
+async def get_platform_settings():
+    settings = await db.platform_settings.find_one({}, {"_id": 0})
     if not settings:
-        # Create default settings
-        default = OrganizationSettings()
-        settings_dict = default.model_dump()
-        settings_dict["created_at"] = settings_dict["created_at"].isoformat()
-        settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
-        await db.organization_settings.insert_one(settings_dict)
-        settings_dict.pop("_id", None)  # Remove MongoDB _id
-        settings = settings_dict
+        default = PlatformSettings()
+        settings = default.model_dump()
+        await db.platform_settings.insert_one(settings)
     return settings
 
-@api_router.get("/admin/settings")
-async def get_admin_settings(user: dict = Depends(require_admin)):
-    """Get all organization settings (admin only)"""
-    settings = await db.organization_settings.find_one({}, {"_id": 0})
-    if not settings:
-        default = OrganizationSettings()
-        settings_dict = default.model_dump()
-        settings_dict["created_at"] = settings_dict["created_at"].isoformat()
-        settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
-        await db.organization_settings.insert_one(settings_dict)
-        settings_dict.pop("_id", None)  # Remove MongoDB _id
-        settings = settings_dict
-    return settings
+@api_router.put("/platform/settings")
+async def update_platform_settings(settings: Dict[str, Any] = Body(...), user: dict = Depends(require_super_admin)):
+    settings["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.platform_settings.update_one({}, {"$set": settings}, upsert=True)
+    return await db.platform_settings.find_one({}, {"_id": 0})
 
-@api_router.put("/admin/settings")
-async def update_settings(update_data: OrganizationSettingsUpdate, user: dict = Depends(require_admin)):
-    """Update organization settings (admin only)"""
-    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
-    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+# ==================== BUSINESS MANAGEMENT (SUPER ADMIN) ====================
+
+@api_router.get("/businesses")
+async def get_businesses(user: dict = Depends(require_super_admin)):
+    businesses = await db.businesses.find({}, {"_id": 0}).to_list(100)
+    return businesses
+
+@api_router.get("/businesses/{business_id}")
+async def get_business(business_id: str, user: dict = Depends(require_admin)):
+    if user["role"] != UserRole.SUPER_ADMIN and user.get("business_id") != business_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
-    await db.organization_settings.update_one({}, {"$set": update_dict}, upsert=True)
-    settings = await db.organization_settings.find_one({}, {"_id": 0})
-    return settings
+    business = await db.businesses.find_one({"business_id": business_id}, {"_id": 0})
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return business
+
+@api_router.post("/businesses")
+async def create_business(data: BusinessCreate, user: dict = Depends(require_super_admin)):
+    existing = await db.businesses.find_one({"slug": data.slug}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Business slug already exists")
+    
+    business = Business(**data.model_dump())
+    business_dict = business.model_dump()
+    business_dict["created_at"] = business_dict["created_at"].isoformat()
+    await db.businesses.insert_one(business_dict)
+    business_dict.pop("_id", None)
+    return business_dict
+
+@api_router.put("/businesses/{business_id}")
+async def update_business(business_id: str, data: Dict[str, Any] = Body(...), user: dict = Depends(require_admin)):
+    if user["role"] != UserRole.SUPER_ADMIN and user.get("business_id") != business_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    data.pop("business_id", None)
+    data.pop("created_at", None)
+    
+    result = await db.businesses.update_one({"business_id": business_id}, {"$set": data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return await db.businesses.find_one({"business_id": business_id}, {"_id": 0})
+
+@api_router.delete("/businesses/{business_id}")
+async def delete_business(business_id: str, user: dict = Depends(require_super_admin)):
+    result = await db.businesses.delete_one({"business_id": business_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return {"message": "Business deleted"}
+
+# ==================== USER MANAGEMENT ====================
+
+@api_router.get("/admin/users")
+async def get_users(
+    user: dict = Depends(require_admin),
+    page: int = 1,
+    limit: int = 20,
+    role: Optional[str] = None,
+    business_id: Optional[str] = None
+):
+    query = get_business_filter(user)
+    if role:
+        query["role"] = role
+    if business_id and user["role"] == UserRole.SUPER_ADMIN:
+        query["business_id"] = business_id
+    
+    skip = (page - 1) * limit
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.users.count_documents(query)
+    
+    return {"users": users, "total": total, "page": page, "pages": (total + limit - 1) // limit}
+
+@api_router.post("/admin/users")
+async def create_user(user_data: UserCreate, admin: dict = Depends(require_admin)):
+    # Validate business access
+    if admin["role"] != UserRole.SUPER_ADMIN:
+        if user_data.business_id and user_data.business_id != admin.get("business_id"):
+            raise HTTPException(status_code=403, detail="Cannot create user for another business")
+        user_data.business_id = admin.get("business_id")
+        if user_data.role in [UserRole.SUPER_ADMIN]:
+            raise HTTPException(status_code=403, detail="Cannot create super admin")
+    
+    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    user_dict = {
+        "user_id": user_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "phone": user_data.phone,
+        "role": user_data.role,
+        "business_id": user_data.business_id,
+        "password_hash": hash_password(user_data.password),
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_dict)
+    user_dict.pop("_id", None)
+    user_dict.pop("password_hash", None)
+    return user_dict
+
+@api_router.put("/admin/users/{user_id}/role")
+async def update_user_role(user_id: str, role: UserRole, admin: dict = Depends(require_admin)):
+    target_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Business admin can only manage users in their business
+    if admin["role"] != UserRole.SUPER_ADMIN:
+        if target_user.get("business_id") != admin.get("business_id"):
+            raise HTTPException(status_code=403, detail="Cannot modify user from another business")
+        if role == UserRole.SUPER_ADMIN:
+            raise HTTPException(status_code=403, detail="Cannot assign super admin role")
+    
+    await db.users.update_one({"user_id": user_id}, {"$set": {"role": role}})
+    return await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+
+@api_router.put("/admin/users/{user_id}/password")
+async def admin_reset_password(user_id: str, new_password: str = Body(..., embed=True), admin: dict = Depends(require_admin)):
+    target_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if admin["role"] != UserRole.SUPER_ADMIN:
+        if target_user.get("business_id") != admin.get("business_id"):
+            raise HTTPException(status_code=403, detail="Cannot modify user from another business")
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    new_hash = hash_password(new_password)
+    await db.users.update_one({"user_id": user_id}, {"$set": {"password_hash": new_hash}})
+    return {"message": "Password reset successfully"}
+
+@api_router.put("/admin/users/{user_id}/status")
+async def update_user_status(user_id: str, is_active: bool = Body(..., embed=True), admin: dict = Depends(require_admin)):
+    target_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if target_user["role"] == UserRole.SUPER_ADMIN and admin["role"] != UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Cannot modify super admin")
+    
+    if admin["role"] != UserRole.SUPER_ADMIN:
+        if target_user.get("business_id") != admin.get("business_id"):
+            raise HTTPException(status_code=403, detail="Cannot modify user from another business")
+    
+    await db.users.update_one({"user_id": user_id}, {"$set": {"is_active": is_active}})
+    return {"message": f"User {'activated' if is_active else 'deactivated'} successfully"}
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
+    if user_id == admin["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    target_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if target_user["role"] == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Cannot delete super admin")
+    
+    if admin["role"] != UserRole.SUPER_ADMIN:
+        if target_user.get("business_id") != admin.get("business_id"):
+            raise HTTPException(status_code=403, detail="Cannot delete user from another business")
+    
+    result = await db.users.delete_one({"user_id": user_id})
+    return {"message": "User deleted"}
 
 # ==================== CATEGORY ROUTES ====================
 
 @api_router.get("/categories")
-async def get_categories(is_active: bool = True):
-    query = {"is_active": is_active} if is_active else {}
+async def get_categories(business_id: Optional[str] = None, is_active: bool = True):
+    query = {}
+    if is_active:
+        query["is_active"] = True
+    if business_id:
+        query["$or"] = [{"business_id": business_id}, {"business_id": None}]
+    
     categories = await db.categories.find(query, {"_id": 0}).to_list(100)
     return categories
 
@@ -593,24 +776,30 @@ async def get_category(category_id: str):
 async def create_category(category_data: CategoryCreate, user: dict = Depends(require_admin)):
     category = Category(**category_data.model_dump())
     cat_dict = category.model_dump()
+    cat_dict["business_id"] = user.get("business_id") if user["role"] != UserRole.SUPER_ADMIN else None
     cat_dict["created_at"] = cat_dict["created_at"].isoformat()
     await db.categories.insert_one(cat_dict)
-    cat_dict.pop("_id", None)  # Remove MongoDB _id
+    cat_dict.pop("_id", None)
     return cat_dict
 
 @api_router.put("/admin/categories/{category_id}")
 async def update_category(category_id: str, category_data: CategoryCreate, user: dict = Depends(require_admin)):
-    result = await db.categories.update_one(
-        {"category_id": category_id},
-        {"$set": category_data.model_dump()}
-    )
+    query = {"category_id": category_id}
+    if user["role"] != UserRole.SUPER_ADMIN:
+        query["$or"] = [{"business_id": user.get("business_id")}, {"business_id": None}]
+    
+    result = await db.categories.update_one(query, {"$set": category_data.model_dump()})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Category not found")
     return await db.categories.find_one({"category_id": category_id}, {"_id": 0})
 
 @api_router.delete("/admin/categories/{category_id}")
 async def delete_category(category_id: str, user: dict = Depends(require_admin)):
-    result = await db.categories.delete_one({"category_id": category_id})
+    query = {"category_id": category_id}
+    if user["role"] != UserRole.SUPER_ADMIN:
+        query["business_id"] = user.get("business_id")
+    
+    result = await db.categories.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Category not found")
     return {"message": "Category deleted"}
@@ -623,6 +812,7 @@ async def get_products(
     search: Optional[str] = None,
     is_featured: Optional[bool] = None,
     is_active: Optional[bool] = True,
+    business_id: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     sort_by: str = "created_at",
@@ -633,11 +823,12 @@ async def get_products(
     query = {}
     if is_active is True:
         query["is_active"] = True
-    # If is_active is False or None, get all products
     if category_id:
         query["category_id"] = category_id
     if is_featured is not None:
         query["is_featured"] = is_featured
+    if business_id:
+        query["business_id"] = business_id
     if search:
         query["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
@@ -655,17 +846,14 @@ async def get_products(
     products = await db.products.find(query, {"_id": 0}).sort(sort_by, sort_direction).skip(skip).limit(limit).to_list(limit)
     total = await db.products.count_documents(query)
     
-    return {
-        "products": products,
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "pages": (total + limit - 1) // limit
-    }
+    return {"products": products, "total": total, "page": page, "limit": limit, "pages": (total + limit - 1) // limit}
 
 @api_router.get("/products/featured")
-async def get_featured_products(limit: int = 6):
-    products = await db.products.find({"is_active": True, "is_featured": True}, {"_id": 0}).limit(limit).to_list(limit)
+async def get_featured_products(limit: int = 8, business_id: Optional[str] = None):
+    query = {"is_active": True, "is_featured": True}
+    if business_id:
+        query["business_id"] = business_id
+    products = await db.products.find(query, {"_id": 0}).limit(limit).to_list(limit)
     return products
 
 @api_router.get("/products/{product_id}")
@@ -684,38 +872,104 @@ async def get_product_by_slug(slug: str):
 
 @api_router.post("/admin/products")
 async def create_product(product_data: ProductCreate, user: dict = Depends(require_admin)):
-    # Check if slug already exists
     existing = await db.products.find_one({"slug": product_data.slug}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail=f"Product with slug '{product_data.slug}' already exists")
     
     product = Product(**product_data.model_dump())
     prod_dict = product.model_dump()
+    prod_dict["business_id"] = user.get("business_id") if user["role"] != UserRole.SUPER_ADMIN else None
     prod_dict["created_at"] = prod_dict["created_at"].isoformat()
     prod_dict["updated_at"] = prod_dict["updated_at"].isoformat()
     await db.products.insert_one(prod_dict)
-    prod_dict.pop("_id", None)  # Remove MongoDB _id
+    prod_dict.pop("_id", None)
     return prod_dict
 
 @api_router.put("/admin/products/{product_id}")
 async def update_product(product_id: str, product_data: ProductUpdate, user: dict = Depends(require_admin)):
+    query = {"product_id": product_id}
+    if user["role"] != UserRole.SUPER_ADMIN:
+        query["business_id"] = user.get("business_id")
+    
     update_dict = {k: v for k, v in product_data.model_dump().items() if v is not None}
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     
-    result = await db.products.update_one(
-        {"product_id": product_id},
-        {"$set": update_dict}
-    )
+    result = await db.products.update_one(query, {"$set": update_dict})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return await db.products.find_one({"product_id": product_id}, {"_id": 0})
 
 @api_router.delete("/admin/products/{product_id}")
 async def delete_product(product_id: str, user: dict = Depends(require_admin)):
-    result = await db.products.delete_one({"product_id": product_id})
+    query = {"product_id": product_id}
+    if user["role"] != UserRole.SUPER_ADMIN:
+        query["business_id"] = user.get("business_id")
+    
+    result = await db.products.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"message": "Product deleted"}
+
+# ==================== DROP-SHIPPING ROUTES ====================
+
+@api_router.get("/admin/suppliers")
+async def get_suppliers(user: dict = Depends(require_admin)):
+    query = get_business_filter(user)
+    suppliers = await db.suppliers.find(query, {"_id": 0}).to_list(100)
+    return suppliers
+
+@api_router.post("/admin/suppliers")
+async def create_supplier(data: SupplierCreate, user: dict = Depends(require_admin)):
+    supplier = Supplier(**data.model_dump(), business_id=user.get("business_id") or "platform")
+    supplier_dict = supplier.model_dump()
+    supplier_dict["created_at"] = supplier_dict["created_at"].isoformat()
+    await db.suppliers.insert_one(supplier_dict)
+    supplier_dict.pop("_id", None)
+    return supplier_dict
+
+@api_router.put("/admin/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, data: Dict[str, Any] = Body(...), user: dict = Depends(require_admin)):
+    query = {"supplier_id": supplier_id, **get_business_filter(user)}
+    data.pop("supplier_id", None)
+    data.pop("business_id", None)
+    
+    result = await db.suppliers.update_one(query, {"$set": data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return await db.suppliers.find_one({"supplier_id": supplier_id}, {"_id": 0})
+
+@api_router.delete("/admin/suppliers/{supplier_id}")
+async def delete_supplier(supplier_id: str, user: dict = Depends(require_admin)):
+    query = {"supplier_id": supplier_id, **get_business_filter(user)}
+    result = await db.suppliers.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"message": "Supplier deleted"}
+
+@api_router.get("/admin/dropship-orders")
+async def get_dropship_orders(user: dict = Depends(require_admin), status: Optional[str] = None):
+    query = get_business_filter(user)
+    if status:
+        query["status"] = status
+    orders = await db.dropship_orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return orders
+
+@api_router.put("/admin/dropship-orders/{dropship_id}/status")
+async def update_dropship_status(
+    dropship_id: str, 
+    status: DropshipStatus,
+    tracking_number: Optional[str] = None,
+    user: dict = Depends(require_admin)
+):
+    query = {"dropship_id": dropship_id, **get_business_filter(user)}
+    update = {"status": status, "updated_at": datetime.now(timezone.utc).isoformat()}
+    if tracking_number:
+        update["tracking_number"] = tracking_number
+    
+    result = await db.dropship_orders.update_one(query, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dropship order not found")
+    return await db.dropship_orders.find_one({"dropship_id": dropship_id}, {"_id": 0})
 
 # ==================== CART ROUTES ====================
 
@@ -729,7 +983,7 @@ async def get_or_create_cart(user_id: Optional[str] = None, session_id: Optional
         cart_dict["created_at"] = cart_dict["created_at"].isoformat()
         cart_dict["updated_at"] = cart_dict["updated_at"].isoformat()
         await db.carts.insert_one(cart_dict)
-        cart_dict.pop("_id", None)  # Remove MongoDB _id
+        cart_dict.pop("_id", None)
         cart = cart_dict
     
     return cart
@@ -740,7 +994,6 @@ async def get_cart(request: Request, user: Optional[dict] = Depends(get_current_
     session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session") or str(uuid.uuid4())
     
     cart = await get_or_create_cart(user_id, session_id if not user_id else None)
-    # Include session_id in response for client to store
     cart["session_id"] = session_id
     return cart
 
@@ -749,14 +1002,12 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
     user_id = user.get("user_id") if user else None
     session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session") or str(uuid.uuid4())
     
-    # Get product
     product = await db.products.find_one({"product_id": item.product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
     cart = await get_or_create_cart(user_id, session_id if not user_id else None)
     
-    # Check if item already in cart
     cart_items = cart.get("items", [])
     found = False
     for cart_item in cart_items:
@@ -766,7 +1017,6 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
             break
     
     if not found:
-        # Get price from variant if specified
         price = product["price"]
         if item.variant_id:
             for variant in product.get("variants", []):
@@ -774,7 +1024,6 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
                     price = variant["price"]
                     break
         
-        # Get primary image
         image_url = None
         for img in product.get("images", []):
             if img.get("is_primary"):
@@ -792,7 +1041,6 @@ async def add_to_cart(item: AddToCartRequest, request: Request, user: Optional[d
             "image_url": image_url
         })
     
-    # Calculate subtotal
     subtotal = sum(i["price"] * i["quantity"] for i in cart_items)
     
     query = {"user_id": user_id} if user_id else {"session_id": session_id}
@@ -818,10 +1066,8 @@ async def update_cart_item(item: UpdateCartItemRequest, request: Request, user: 
     
     cart_items = cart.get("items", [])
     if item.quantity <= 0:
-        # Remove item
         cart_items = [i for i in cart_items if not (i["product_id"] == item.product_id and i.get("variant_id") == item.variant_id)]
     else:
-        # Update quantity
         for cart_item in cart_items:
             if cart_item["product_id"] == item.product_id and cart_item.get("variant_id") == item.variant_id:
                 cart_item["quantity"] = item.quantity
@@ -877,29 +1123,40 @@ async def create_order(order_data: OrderCreate, request: Request, user: Optional
     user_id = user.get("user_id") if user else None
     session_id = request.headers.get("X-Cart-Session") or request.cookies.get("cart_session")
     
-    # Get cart
     query = {"user_id": user_id} if user_id else {"session_id": session_id}
     cart = await db.carts.find_one(query, {"_id": 0})
     
     if not cart or not cart.get("items"):
         raise HTTPException(status_code=400, detail="Cart is empty")
     
-    # Calculate totals
     subtotal = cart["subtotal"]
-    shipping_cost = 10.0 if subtotal < 100 else 0  # Free shipping over $100
-    tax = round(subtotal * 0.1, 2)  # 10% tax
+    shipping_cost = 10.0 if subtotal < 100 else 0
+    tax = round(subtotal * 0.1, 2)
     total = subtotal + shipping_cost + tax
     
-    # Create order
+    # Check for dropship items
+    has_dropship = False
+    order_items = []
+    for item in cart["items"]:
+        product = await db.products.find_one({"product_id": item["product_id"]}, {"_id": 0})
+        order_item = OrderItem(**item)
+        if product and product.get("is_dropship"):
+            order_item.is_dropship = True
+            order_item.supplier_id = product.get("supplier_id")
+            has_dropship = True
+        order_items.append(order_item)
+    
     order = Order(
         user_id=user_id,
-        items=[OrderItem(**item) for item in cart["items"]],
+        business_id=user.get("business_id") if user else None,
+        items=order_items,
         shipping_address=order_data.shipping_address,
         subtotal=subtotal,
         shipping_cost=shipping_cost,
         tax=tax,
         total=total,
         payment_method=order_data.payment_method,
+        has_dropship_items=has_dropship,
         notes=order_data.notes
     )
     
@@ -910,9 +1167,31 @@ async def create_order(order_data: OrderCreate, request: Request, user: Optional
     order_dict["items"] = [item.model_dump() for item in order.items]
     
     await db.orders.insert_one(order_dict)
-    order_dict.pop("_id", None)  # Remove MongoDB _id
+    order_dict.pop("_id", None)
     
-    # Clear cart after order
+    # Create dropship orders for suppliers
+    if has_dropship:
+        supplier_items = {}
+        for item in order_dict["items"]:
+            if item.get("is_dropship") and item.get("supplier_id"):
+                sid = item["supplier_id"]
+                if sid not in supplier_items:
+                    supplier_items[sid] = []
+                supplier_items[sid].append(item)
+        
+        for supplier_id, items in supplier_items.items():
+            dropship = DropshipOrder(
+                order_id=order_dict["order_id"],
+                supplier_id=supplier_id,
+                business_id=order_dict.get("business_id") or "platform",
+                items=items
+            )
+            ds_dict = dropship.model_dump()
+            ds_dict["created_at"] = ds_dict["created_at"].isoformat()
+            ds_dict["updated_at"] = ds_dict["updated_at"].isoformat()
+            await db.dropship_orders.insert_one(ds_dict)
+    
+    # Clear cart
     await db.carts.update_one(query, {"$set": {"items": [], "subtotal": 0}})
     
     return order_dict
@@ -930,21 +1209,19 @@ async def get_order(order_id: str, user: dict = Depends(require_auth)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Check if user owns this order or is admin
-    if order.get("user_id") != user["user_id"] and user["role"] not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if order.get("user_id") != user["user_id"] and user["role"] not in [UserRole.SUPER_ADMIN, UserRole.BUSINESS_ADMIN, UserRole.STAFF]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return order
 
-# Admin order routes
 @api_router.get("/admin/orders")
 async def get_all_orders(
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_staff),
     status: Optional[str] = None,
     page: int = 1,
     limit: int = 20
 ):
-    query = {}
+    query = get_business_filter(user)
     if status:
         query["status"] = status
     
@@ -955,16 +1232,17 @@ async def get_all_orders(
     return {"orders": orders, "total": total, "page": page, "pages": (total + limit - 1) // limit}
 
 @api_router.put("/admin/orders/{order_id}/status")
-async def update_order_status(order_id: str, status: OrderStatus, user: dict = Depends(require_admin)):
+async def update_order_status(order_id: str, status: OrderStatus, user: dict = Depends(require_staff)):
+    query = {"order_id": order_id, **get_business_filter(user)}
     result = await db.orders.update_one(
-        {"order_id": order_id},
+        query,
         {"$set": {"status": status, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Order not found")
     return await db.orders.find_one({"order_id": order_id}, {"_id": 0})
 
-# ==================== PAYMENT ROUTES (STRIPE) ====================
+# ==================== PAYMENT ROUTES ====================
 
 @api_router.post("/checkout/stripe/create-session")
 async def create_stripe_checkout(request: Request, user: Optional[dict] = Depends(get_current_user)):
@@ -977,7 +1255,6 @@ async def create_stripe_checkout(request: Request, user: Optional[dict] = Depend
     if not order_id or not origin_url:
         raise HTTPException(status_code=400, detail="order_id and origin_url required")
     
-    # Get order
     order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -999,26 +1276,10 @@ async def create_stripe_checkout(request: Request, user: Optional[dict] = Depend
         currency="aud",
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"order_id": order_id, "user_id": order.get("user_id", "")}
+        metadata={"order_id": order_id}
     )
     
     session = await stripe_checkout.create_checkout_session(checkout_request)
-    
-    # Create payment transaction
-    txn = PaymentTransaction(
-        order_id=order_id,
-        user_id=order.get("user_id"),
-        amount=order["total"],
-        currency="AUD",
-        payment_method=PaymentMethod.STRIPE,
-        session_id=session.session_id,
-        status=PaymentStatus.PENDING,
-        metadata={"checkout_url": session.url}
-    )
-    txn_dict = txn.model_dump()
-    txn_dict["created_at"] = txn_dict["created_at"].isoformat()
-    txn_dict["updated_at"] = txn_dict["updated_at"].isoformat()
-    await db.payment_transactions.insert_one(txn_dict)
     
     return {"url": session.url, "session_id": session.session_id}
 
@@ -1033,16 +1294,10 @@ async def get_stripe_status(session_id: str):
     stripe_checkout = StripeCheckout(api_key=api_key, webhook_url="")
     status = await stripe_checkout.get_checkout_status(session_id)
     
-    # Update transaction and order if paid
     if status.payment_status == "paid":
-        txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-        if txn and txn["status"] != PaymentStatus.COMPLETED:
-            await db.payment_transactions.update_one(
-                {"session_id": session_id},
-                {"$set": {"status": PaymentStatus.COMPLETED, "updated_at": datetime.now(timezone.utc).isoformat()}}
-            )
+        if status.metadata and status.metadata.get("order_id"):
             await db.orders.update_one(
-                {"order_id": txn["order_id"]},
+                {"order_id": status.metadata["order_id"]},
                 {"$set": {
                     "payment_status": PaymentStatus.COMPLETED,
                     "status": OrderStatus.CONFIRMED,
@@ -1053,96 +1308,33 @@ async def get_stripe_status(session_id: str):
     
     return status
 
-@api_router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    from emergentintegrations.payments.stripe.checkout import StripeCheckout
-    
-    api_key = os.environ.get("STRIPE_API_KEY")
-    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url="")
-    
-    body = await request.body()
-    signature = request.headers.get("Stripe-Signature")
-    
-    try:
-        event = await stripe_checkout.handle_webhook(body, signature)
-        
-        if event.payment_status == "paid":
-            session_id = event.session_id
-            await db.payment_transactions.update_one(
-                {"session_id": session_id},
-                {"$set": {"status": PaymentStatus.COMPLETED, "updated_at": datetime.now(timezone.utc).isoformat()}}
-            )
-            
-            txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-            if txn:
-                await db.orders.update_one(
-                    {"order_id": txn["order_id"]},
-                    {"$set": {
-                        "payment_status": PaymentStatus.COMPLETED,
-                        "status": OrderStatus.CONFIRMED,
-                        "payment_id": session_id,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }}
-                )
-        
-        return {"status": "processed"}
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return {"status": "error", "message": str(e)}
-
-# ==================== ADMIN USER MANAGEMENT ====================
-
-@api_router.get("/admin/users")
-async def get_users(user: dict = Depends(require_admin), page: int = 1, limit: int = 20, role: Optional[str] = None):
-    query = {}
-    if role:
-        query["role"] = role
-    
-    skip = (page - 1) * limit
-    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).skip(skip).limit(limit).to_list(limit)
-    total = await db.users.count_documents(query)
-    
-    return {"users": users, "total": total, "page": page, "pages": (total + limit - 1) // limit}
-
-@api_router.put("/admin/users/{user_id}/role")
-async def update_user_role(user_id: str, role: UserRole, admin: dict = Depends(require_admin)):
-    result = await db.users.update_one(
-        {"user_id": user_id},
-        {"$set": {"role": role}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-    return await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-
-@api_router.delete("/admin/users/{user_id}")
-async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
-    if user_id == admin["user_id"]:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    
-    result = await db.users.delete_one({"user_id": user_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"message": "User deleted"}
-
-# ==================== ADMIN DASHBOARD STATS ====================
+# ==================== DASHBOARD STATS ====================
 
 @api_router.get("/admin/dashboard/stats")
-async def get_dashboard_stats(user: dict = Depends(require_admin)):
-    total_orders = await db.orders.count_documents({})
-    pending_orders = await db.orders.count_documents({"status": OrderStatus.PENDING})
-    total_products = await db.products.count_documents({})
-    total_users = await db.users.count_documents({})
+async def get_dashboard_stats(user: dict = Depends(require_staff)):
+    query = get_business_filter(user)
     
-    # Calculate revenue
+    total_orders = await db.orders.count_documents(query)
+    pending_orders = await db.orders.count_documents({**query, "status": OrderStatus.PENDING})
+    
+    product_query = query.copy()
+    total_products = await db.products.count_documents(product_query)
+    
+    user_query = query.copy()
+    total_users = await db.users.count_documents(user_query)
+    
     pipeline = [
-        {"$match": {"payment_status": PaymentStatus.COMPLETED}},
+        {"$match": {**query, "payment_status": PaymentStatus.COMPLETED}},
         {"$group": {"_id": None, "total": {"$sum": "$total"}}}
     ]
     revenue_result = await db.orders.aggregate(pipeline).to_list(1)
     total_revenue = revenue_result[0]["total"] if revenue_result else 0
     
-    # Recent orders
-    recent_orders = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    recent_orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    
+    # Dropship stats
+    dropship_query = query.copy()
+    pending_dropship = await db.dropship_orders.count_documents({**dropship_query, "status": DropshipStatus.PENDING})
     
     return {
         "total_orders": total_orders,
@@ -1150,96 +1342,51 @@ async def get_dashboard_stats(user: dict = Depends(require_admin)):
         "total_products": total_products,
         "total_users": total_users,
         "total_revenue": total_revenue,
+        "pending_dropship": pending_dropship,
         "recent_orders": recent_orders
     }
 
-# ==================== AI FEATURES ====================
+# ==================== SETTINGS ====================
 
-@api_router.post("/ai/recommendations")
-async def get_ai_recommendations(request: Request):
-    """Get AI-powered product recommendations"""
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        body = await request.json()
-        product_id = body.get("product_id")
-        category_id = body.get("category_id")
-        
-        # Get current product or category products
-        products = []
-        if product_id:
-            product = await db.products.find_one({"product_id": product_id}, {"_id": 0})
-            if product:
-                # Get similar products from same category
-                products = await db.products.find(
-                    {"category_id": product.get("category_id"), "product_id": {"$ne": product_id}, "is_active": True},
-                    {"_id": 0}
-                ).limit(10).to_list(10)
-        elif category_id:
-            products = await db.products.find({"category_id": category_id, "is_active": True}, {"_id": 0}).limit(10).to_list(10)
-        else:
-            products = await db.products.find({"is_active": True, "is_featured": True}, {"_id": 0}).limit(10).to_list(10)
-        
-        if not products:
-            return {"recommendations": []}
-        
-        # Use AI to rank/recommend
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            # Return products without AI ranking
-            return {"recommendations": products[:4]}
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"rec_{uuid.uuid4().hex[:8]}",
-            system_message="You are a product recommendation assistant. Given a list of products, return the top 4 product IDs that would be most appealing to customers, as a JSON array of product_ids."
-        ).with_model("openai", "gpt-5.2")
-        
-        product_list = [{"id": p["product_id"], "name": p["name"], "price": p["price"], "description": p.get("short_description", "")} for p in products]
-        
-        response = await chat.send_message(UserMessage(text=f"Recommend top 4 from these products: {product_list}. Return only a JSON array of product_ids."))
-        
-        # Parse response and return matching products
-        import json
-        try:
-            recommended_ids = json.loads(response)
-            recommended = [p for p in products if p["product_id"] in recommended_ids]
-            return {"recommendations": recommended[:4]}
-        except:
-            return {"recommendations": products[:4]}
+@api_router.get("/settings")
+async def get_settings(business_id: Optional[str] = None):
+    if business_id:
+        business = await db.businesses.find_one({"business_id": business_id}, {"_id": 0})
+        if business:
+            return {
+                "website_name": business.get("name", "Store"),
+                "logo_url": business.get("logo_url"),
+                "primary_color": business.get("primary_color", "#00ACAC"),
+                "business_id": business_id
+            }
     
-    except Exception as e:
-        logger.error(f"AI recommendation error: {e}")
-        # Fallback to featured products
-        products = await db.products.find({"is_active": True, "is_featured": True}, {"_id": 0}).limit(4).to_list(4)
-        return {"recommendations": products}
+    platform = await db.platform_settings.find_one({}, {"_id": 0})
+    return {
+        "website_name": platform.get("platform_name", "ShopStore") if platform else "ShopStore",
+        "logo_url": platform.get("platform_logo_url") if platform else None,
+        "primary_color": "#00ACAC",
+        "show_powered_by": platform.get("show_powered_by", True) if platform else True
+    }
 
-@api_router.get("/ai/search-suggestions")
-async def get_search_suggestions(q: str = Query(..., min_length=2)):
-    """Get AI-powered search suggestions"""
-    try:
-        # First, do a basic search
-        products = await db.products.find(
-            {"$or": [
-                {"name": {"$regex": q, "$options": "i"}},
-                {"tags": {"$in": [q.lower()]}}
-            ], "is_active": True},
-            {"_id": 0, "name": 1, "product_id": 1}
-        ).limit(5).to_list(5)
-        
-        categories = await db.categories.find(
-            {"name": {"$regex": q, "$options": "i"}, "is_active": True},
-            {"_id": 0, "name": 1, "category_id": 1}
-        ).limit(3).to_list(3)
-        
-        return {
-            "products": products,
-            "categories": categories,
-            "suggestions": [p["name"] for p in products]
-        }
-    except Exception as e:
-        logger.error(f"Search suggestion error: {e}")
-        return {"products": [], "categories": [], "suggestions": []}
+@api_router.get("/admin/settings")
+async def get_admin_settings(user: dict = Depends(require_admin)):
+    if user["role"] == UserRole.SUPER_ADMIN:
+        return await db.platform_settings.find_one({}, {"_id": 0}) or PlatformSettings().model_dump()
+    else:
+        business = await db.businesses.find_one({"business_id": user.get("business_id")}, {"_id": 0})
+        return business or {}
+
+@api_router.put("/admin/settings")
+async def update_admin_settings(settings: Dict[str, Any] = Body(...), user: dict = Depends(require_admin)):
+    if user["role"] == UserRole.SUPER_ADMIN:
+        await db.platform_settings.update_one({}, {"$set": settings}, upsert=True)
+        return await db.platform_settings.find_one({}, {"_id": 0})
+    else:
+        await db.businesses.update_one(
+            {"business_id": user.get("business_id")},
+            {"$set": settings}
+        )
+        return await db.businesses.find_one({"business_id": user.get("business_id")}, {"_id": 0})
 
 # Include router
 app.include_router(api_router)
@@ -1258,40 +1405,41 @@ async def startup_event():
     # Create indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
+    await db.users.create_index("business_id")
     await db.products.create_index("product_id", unique=True)
     await db.products.create_index("slug", unique=True)
-    await db.products.create_index("category_id")
+    await db.products.create_index("business_id")
     await db.categories.create_index("category_id", unique=True)
-    await db.categories.create_index("slug", unique=True)
+    await db.businesses.create_index("business_id", unique=True)
+    await db.businesses.create_index("slug", unique=True)
+    await db.suppliers.create_index("supplier_id", unique=True)
     await db.orders.create_index("order_id", unique=True)
-    await db.orders.create_index("user_id")
+    await db.orders.create_index("business_id")
+    await db.dropship_orders.create_index("dropship_id", unique=True)
     await db.carts.create_index("user_id")
     await db.carts.create_index("session_id")
     
-    # Seed initial data if empty
-    if await db.organization_settings.count_documents({}) == 0:
-        default_settings = OrganizationSettings()
-        settings_dict = default_settings.model_dump()
-        settings_dict["created_at"] = settings_dict["created_at"].isoformat()
-        settings_dict["updated_at"] = settings_dict["updated_at"].isoformat()
-        await db.organization_settings.insert_one(settings_dict)
-        logger.info("Created default organization settings")
+    # Create default platform settings
+    if await db.platform_settings.count_documents({}) == 0:
+        await db.platform_settings.insert_one(PlatformSettings().model_dump())
     
-    # Create default admin if not exists
-    admin_exists = await db.users.find_one({"role": UserRole.ADMIN})
-    if not admin_exists:
-        admin = User(
-            email="admin@store.com",
-            name="Store Admin",
-            role=UserRole.ADMIN
-        )
-        admin_dict = admin.model_dump()
-        admin_dict["password_hash"] = hash_password("admin123")
-        admin_dict["created_at"] = admin_dict["created_at"].isoformat()
+    # Create super admin if not exists
+    super_admin = await db.users.find_one({"role": UserRole.SUPER_ADMIN})
+    if not super_admin:
+        admin_dict = {
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "email": "superadmin@platform.com",
+            "name": "Super Admin",
+            "role": UserRole.SUPER_ADMIN,
+            "business_id": None,
+            "password_hash": hash_password("superadmin123"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
         await db.users.insert_one(admin_dict)
-        logger.info("Created default admin user: admin@store.com / admin123")
+        logger.info("Created super admin: superadmin@platform.com / superadmin123")
     
-    logger.info("E-Commerce API started successfully")
+    logger.info("Multi-Business E-Commerce API started")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
